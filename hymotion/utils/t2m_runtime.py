@@ -128,7 +128,6 @@ class T2MRuntime:
             device = torch.device("cpu")
             pipeline.load_in_demo(
                 self.ckpt_name,
-                os.path.dirname(self.ckpt_name),
                 build_text_encoder=not self.skip_text,
                 allow_empty_ckpt=allow_empty_ckpt,
             )
@@ -145,7 +144,6 @@ class T2MRuntime:
                 )
                 p.load_in_demo(
                     self.ckpt_name,
-                    os.path.dirname(self.ckpt_name),
                     build_text_encoder=not self.skip_text,
                     allow_empty_ckpt=allow_empty_ckpt,
                 )
@@ -238,6 +236,8 @@ class T2MRuntime:
             raise
         finally:
             self._release_pipeline(pi)
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def load_text_encoder(self) -> None:
         """

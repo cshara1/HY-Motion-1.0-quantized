@@ -176,7 +176,6 @@ class MotionGeneration(torch.nn.Module):
     def load_in_demo(
         self,
         ckpt_name: str,
-        mean_std_name: Optional[str] = None,
         build_text_encoder: bool = True,
         allow_empty_ckpt: bool = False,
     ) -> None:
@@ -188,11 +187,6 @@ class MotionGeneration(torch.nn.Module):
             else:
                 checkpoint = torch.load(ckpt_name, map_location="cpu", weights_only=False)
                 self.load_state_dict(checkpoint["model_state_dict"], strict=False)
-        if mean_std_name is not None:
-            assert os.path.exists(mean_std_name), f"{mean_std_name} not found"
-            if not os.path.isfile(mean_std_name):
-                mean_std_name = None
-            self._load_mean_std(mean_std_name)
         self.motion_transformer.eval()
         if build_text_encoder and not self.uncondition_mode:
             self.text_encoder = load_object(self._text_encoder_module, self._text_encoder_cfg)
@@ -299,11 +293,11 @@ class MotionGeneration(torch.nn.Module):
             k3d = torch.zeros(B, L, nj, 3, device=device)
 
         return dict(
-            latent_denorm=latent_denorm,  # (B, L, 201)
-            keypoints3d=k3d,  # (B, L, J, 3)
-            rot6d=rot6d_smooth,  # (B, L, J, 6)
-            transl=transl_smooth,  # (B, L, 3)
-            root_rotations_mat=root_rotmat_smooth,  # (B, L, 3, 3)
+            latent_denorm=latent_denorm.cpu().detach(),  # (B, L, 201)
+            keypoints3d=k3d.cpu().detach(),  # (B, L, J, 3)
+            rot6d=rot6d_smooth.cpu().detach(),  # (B, L, J, 6)
+            transl=transl_smooth.cpu().detach(),  # (B, L, 3)
+            root_rotations_mat=root_rotmat_smooth.cpu().detach(),  # (B, L, 3, 3)
         )
 
     @staticmethod
@@ -584,9 +578,8 @@ class MotionFlowMatching(MotionGeneration):
         )
         with torch.no_grad():
             trajectory = odeint(fn, y0, t, **self._noise_scheduler_cfg)
-        sampled = trajectory[-1]
+        sampled = trajectory[-1][:, :length, ...].clone()
         assert isinstance(sampled, Tensor), f"sampled must be a Tensor, but got {type(sampled)}"
-        sampled = sampled[:, :length, ...].clone()
 
         output_dict = self.decode_motion_from_latent(sampled, should_apply_smooothing=True)
 

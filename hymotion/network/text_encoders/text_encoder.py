@@ -152,9 +152,9 @@ class HYTextModel(nn.Module):
             )
         )
         if self.llm_type == "qwen3":
-            ctxt_raw = llm_outputs.hidden_states[-1]
+            ctxt_raw = llm_outputs.hidden_states[-1].clone()
         else:
-            ctxt_raw = llm_outputs.last_hidden_state
+            ctxt_raw = llm_outputs.last_hidden_state.clone()
 
         start = self.crop_start
         end = start + self._orig_max_length_llm
