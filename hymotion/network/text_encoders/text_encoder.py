@@ -80,7 +80,10 @@ class HYTextModel(nn.Module):
             )
             self.sentence_emb_text_encoder = SENTENCE_EMB_LAYOUT[sentence_emb_type][
                 "text_encoder_class"
-            ].from_pretrained(SENTENCE_EMB_LAYOUT[sentence_emb_type]["module_path"])
+            ].from_pretrained(
+                SENTENCE_EMB_LAYOUT[sentence_emb_type]["module_path"],
+                torch_dtype=torch.float16  # Use FP16 to save memory
+            )
             self.sentence_emb_text_encoder = self.sentence_emb_text_encoder.eval().requires_grad_(False)
             self.vtxt_dim = self.sentence_emb_text_encoder.config.hidden_size
 
@@ -98,11 +101,41 @@ class HYTextModel(nn.Module):
                 LLM_ENCODER_LAYOUT[llm_type]["module_path"],
                 padding_side="right",
             )
-            self.llm_text_encoder = LLM_ENCODER_LAYOUT[llm_type]["text_encoder_class"].from_pretrained(
-                LLM_ENCODER_LAYOUT[llm_type]["module_path"],
-                low_cpu_mem_usage=True,
-                torch_dtype=torch.bfloat16,
-            )
+            
+            # Configure quantization based on environment variable
+            quantization = os.environ.get("QWEN_QUANTIZATION", "int4").lower()
+            print(f">>> Loading Qwen3-8B with quantization: {quantization}")
+            
+            if quantization == "int4":
+                from transformers import BitsAndBytesConfig
+                bnb_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4"
+                )
+                self.llm_text_encoder = LLM_ENCODER_LAYOUT[llm_type]["text_encoder_class"].from_pretrained(
+                    LLM_ENCODER_LAYOUT[llm_type]["module_path"],
+                    quantization_config=bnb_config,
+                    device_map="auto",
+                    low_cpu_mem_usage=True,
+                )
+            elif quantization == "int8":
+                from transformers import BitsAndBytesConfig
+                bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+                self.llm_text_encoder = LLM_ENCODER_LAYOUT[llm_type]["text_encoder_class"].from_pretrained(
+                    LLM_ENCODER_LAYOUT[llm_type]["module_path"],
+                    quantization_config=bnb_config,
+                    device_map="auto",
+                    low_cpu_mem_usage=True,
+                )
+            else:  # quantization == "none"
+                self.llm_text_encoder = LLM_ENCODER_LAYOUT[llm_type]["text_encoder_class"].from_pretrained(
+                    LLM_ENCODER_LAYOUT[llm_type]["module_path"],
+                    low_cpu_mem_usage=True,
+                    torch_dtype=torch.bfloat16,
+                )
+            
             self.llm_text_encoder = self.llm_text_encoder.eval().requires_grad_(False)
             self.ctxt_dim = self.llm_text_encoder.config.hidden_size
 

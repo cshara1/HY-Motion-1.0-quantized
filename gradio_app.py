@@ -840,6 +840,8 @@ def create_demo(final_model_path):
         prompt_engineering_host = os.environ.get("PROMPT_HOST", None)
         prompt_engineering_model_path = os.environ.get("PROMPT_MODEL_PATH", None)
         disable_prompt_engineering = os.environ.get("DISABLE_PROMPT_ENGINEERING", False)
+        # Quantization configuration
+        quantize_text_encoder = os.environ.get("QWEN_QUANTIZATION", "int4")
 
     args = Args()
     _global_args = args  # Set global args for lazy loading
@@ -887,6 +889,11 @@ def create_demo(final_model_path):
         print(">>> Initializing T2MRuntime...")
         if "USE_HF_MODELS" not in os.environ:
             os.environ["USE_HF_MODELS"] = "1"
+        
+        # Set quantization level
+        if "QWEN_QUANTIZATION" not in os.environ:
+            os.environ["QWEN_QUANTIZATION"] = args.quantize_text_encoder
+        print(f">>> Text encoder quantization: {os.environ.get('QWEN_QUANTIZATION', 'int4')}")
 
         skip_text = False
         runtime = T2MRuntime(
@@ -907,7 +914,12 @@ def create_demo(final_model_path):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="HY-Motion-1.0 Gradio App")
+    parser.add_argument("--share", action="store_true", help="Enable Gradio sharing")
+    parser.add_argument("--model_path", type=str, default=None, help="Path to the model")
+    args = parser.parse_args()
+
     # Create demo at module level for Hugging Face Spaces
-    final_model_path = try_to_download_model()
+    final_model_path = args.model_path if args.model_path else try_to_download_model()
     demo = create_demo(final_model_path)
-    demo.launch()
+    demo.launch(share=args.share)

@@ -152,6 +152,18 @@ class T2MRuntime:
             self._gpu_load = [0] * len(self.pipelines)
 
         self._loaded = True
+        
+        # Log memory usage after loading
+        self._log_memory_usage("After model loading")
+
+    def _log_memory_usage(self, stage: str):
+        """Log GPU memory usage at different stages."""
+        if torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                allocated = torch.cuda.memory_allocated(i) / 1024**3
+                reserved = torch.cuda.memory_reserved(i) / 1024**3
+                total = torch.cuda.get_device_properties(i).total_memory / 1024**3
+                print(f">>> [{stage}] GPU {i}: {allocated:.2f}GB allocated / {total:.2f}GB total ({allocated/total*100:.1f}%)")
 
     def _acquire_pipeline(self) -> int:
         while True:

@@ -269,12 +269,13 @@ class PromptRewriter:
     def _load_model(self):
         if self.model is None:
             print(f">>> Loading prompter model from {self.model_path}")
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.float16,
                 device_map="auto",
                 load_in_4bit=True,
+                trust_remote_code=True,
             )
             self.model.eval()
 
