@@ -26,3 +26,4 @@ openai==1.78.1
 
 fbxsdkpy==2020.1.post2
 gradio==4.44.1
+mmgp==3.2.7

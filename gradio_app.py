@@ -842,6 +842,9 @@ def create_demo(final_model_path):
         disable_prompt_engineering = os.environ.get("DISABLE_PROMPT_ENGINEERING", False)
         # Quantization configuration
         quantize_text_encoder = os.environ.get("QWEN_QUANTIZATION", "int4")
+        # MMGP Offloading profile
+        profile = os.environ.get("MMGP_PROFILE", "3")
+        verbose = os.environ.get("MMGP_VERBOSE", "1")
 
     args = Args()
     _global_args = args  # Set global args for lazy loading
@@ -906,7 +909,39 @@ def create_demo(final_model_path):
             prompt_engineering_host=args.prompt_engineering_host,
             prompt_engineering_model_path=args.prompt_engineering_model_path,
         )
-        _global_runtime = runtime  # Set global runtime for GPU function
+        _global_runtime = runtime  # Set global runtime for GPU function# Apply MMGP Offloading if configured
+        try:
+            from mmgp import offload
+
+            profile = int(args.profile)
+            if profile > 0: # Profile 0 or negative disables it via arg logic if desired, though here we default to 3
+                print(f">>> Configuring MMGP offloading with profile {profile}...")
+                
+                # Extract models from runtime
+                pipe = runtime.extract_models_for_mmgp()
+                
+                if not pipe:
+                    print(">>> [WARNING] No models extracted for offloading. Skipping MMGP.")
+                else:
+                    # Configure Profile Rules
+                    kwargs = {}
+                    
+                    # Custom profile logic similar to Hunyuan3D-2GP
+                    if profile != 1 and profile != 3:
+                        # Set VRAM budget (e.g., 2.2GB for aggressive offloading)
+                        # This works well for 16GB cards to keep large text encoders on CPU when unused
+                        # Adjust budget as needed
+                        kwargs["budgets"] = { "*": 4000 } # 4GB budget for active model components
+                        
+                    print(f">>> Applying MMGP offload profile: {profile}")
+                    offload.profile(pipe, profile_no=profile, verboseLevel=int(args.verbose), **kwargs)
+            
+        except ImportError:
+            print(">>> [INFO] MMGP not installed. Skipping dynamic offloading.")
+        except Exception as e:
+            print(f">>> [ERROR] Failed to apply MMGP offloading: {e}")
+            import traceback
+            traceback.print_exc()
 
     ui = T2MGradioUI(runtime=runtime, args=args)
     demo = ui.build_ui()
@@ -917,7 +952,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="HY-Motion-1.0 Gradio App")
     parser.add_argument("--share", action="store_true", help="Enable Gradio sharing")
     parser.add_argument("--model_path", type=str, default=None, help="Path to the model")
+    parser.add_argument("--quantize-text-encoder", type=str, default="int4", choices=["int4", "int8", "none"], help="Quantization level for text encoder")
+    parser.add_argument("--profile", type=str, default="3", help="Offload profile (1-4). Default 3.")
+    parser.add_argument("--verbose", type=str, default="1", help="Verbose level for offloading.")
     args = parser.parse_args()
+
+    # Set environment variables from args
+    if args.quantize_text_encoder:
+        os.environ["QWEN_QUANTIZATION"] = args.quantize_text_encoder
+    if args.profile:
+        os.environ["MMGP_PROFILE"] = args.profile
+    if args.verbose:
+        os.environ["MMGP_VERBOSE"] = args.verbose
 
     # Create demo at module level for Hugging Face Spaces
     final_model_path = args.model_path if args.model_path else try_to_download_model()
