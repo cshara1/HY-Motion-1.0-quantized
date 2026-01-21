@@ -775,7 +775,6 @@ class T2MGradioUI:
                 self.cfg_slider,
             ],
             outputs=[self.output_display, self.fbx_files],
-            concurrency_limit=NUM_WORKERS,
         ).then(
             fn=lambda fbx_list: (
                 (
