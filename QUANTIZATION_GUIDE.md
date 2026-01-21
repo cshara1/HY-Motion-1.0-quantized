@@ -180,6 +180,34 @@ The slowdown is acceptable for most use cases on memory-constrained GPUs.
 
 ---
 
+### MMGP Memory Offloading
+
+MMGP (Memory Management for Generative Models) allows running larger models on smaller GPUs by dynamically offloading unused components to CPU RAM.
+
+| Variable       | CLI Argument | Default | Description                                                |
+| :------------- | :----------- | :------ | :--------------------------------------------------------- |
+| `MMGP_PROFILE` | `--profile`  | `3`     | Offloading aggressiveness (1-4). Higher = more aggressive. |
+| `MMGP_VERBOSE` | `--verbose`  | `1`     | Logging level for offloading operations.                   |
+
+**Profile Levels:**
+- **Profile 1**: Detailed offloading (slowest, max memory saving)
+- **Profile 3** (Default): Balanced strategy. Keeps active components in VRAM, offloads others. Ideal for 12-16GB GPUs.
+- **Profile 0**: Disabled
+
+**Usage Example:**
+```bash
+# Enable aggressive offloading for 12GB cards
+python gradio_app.py --share --profile 3 --verbose 1
+```
+
+**Combined with Quantization:**
+```bash
+# Maximum memory efficiency
+QWEN_QUANTIZATION=int4 python gradio_app.py --share --profile 3
+```
+
+---
+
 ## Environment Variables Reference
 
 ### Core Quantization Settings
